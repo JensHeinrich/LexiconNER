@@ -61,19 +61,21 @@ class PULSTMCNN(nn.Module):
 
         fcOut = self.fc(paddedOut[0])
 
-        fcOut = fcOut * mask.cuda()
+        #fcOut = fcOut * mask.cuda()
+        fcOut = fcOut * mask
         fcOut = fcOut[reverseIndices]
 
         return fcOut
 
-    def loss_func(self, yTrue, yPred, type):
-        y = torch.eye(2)[yTrue].float().cuda()
+    def loss_func(self, yTrue, yPred, learning_type):
+        y = torch.eye(2)[yTrue].float()
+        #y = torch.eye(2)[yTrue].float().cuda()
         if len(y.shape) == 1:
             y = y[None, :]
         # y = torch.from_numpy(yTrue).float().cuda()
-        if type == 'bnpu' or type == 'bpu':
+        if learning_type == 'bnpu' or learning_type == 'bpu':
             loss = torch.mean((y * (1 - yPred)).sum(dim=1))
-        elif type == 'upu':
+        elif learning_type == 'upu':
             loss = torch.mean((-y * torch.log(yPred)).sum(dim=1))
         # loss = 0.5 * torch.max(1-yPred*(2.0*yTrue-1),0)
         return loss
@@ -117,25 +119,30 @@ class Trainer(object):
         self.optimizer.zero_grad()
         result = self.model(token, case, char, feature)
 
-        hP = result.masked_select(torch.from_numpy(postive).byte().cuda()).contiguous().view(-1, 2)
-        hU = result.masked_select(torch.from_numpy(unlabeled).byte().cuda()).contiguous().view(-1, 2)
+        hP = result.masked_select(torch.as_tensor(postive, dtype=torch.bool)).contiguous().view(-1, 2)
+        #hP = result.masked_select(torch.from_numpy(postive).byte().cuda()).contiguous().view(-1, 2)
+        hU = result.masked_select(torch.as_tensor(unlabeled, dtype=torch.bool)).contiguous().view(-1, 2)
+        #hU = result.masked_select(torch.from_numpy(unlabeled).byte().cuda()).contiguous().view(-1, 2)
         if len(hP) > 0:
-            pRisk = self.model.loss_func(1, hP, args.type)
+            pRisk = self.model.loss_func(1, hP, args.learning_type)
         else:
-            pRisk = torch.FloatTensor([0]).cuda()
-        uRisk = self.model.loss_func(0, hU, args.type)
+            pRisk = torch.FloatTensor([0])
+            #pRisk = torch.FloatTensor([0]).cuda()
+        uRisk = self.model.loss_func(0, hU, args.learning_type)
         nRisk = uRisk - self.prior * (1 - pRisk)
         risk = self.m * pRisk + nRisk
 
-        if args.type == 'bnpu':
+        if args.learning_type == 'bnpu':
             if nRisk < self.beta:
                 risk = -self.gamma * nRisk
         # risk = self.model.loss_func(label, result)
         (risk).backward()
         self.optimizer.step()
         pred = torch.argmax(hU, dim=1)
-        label = Variable(torch.LongTensor(list(lids))).cuda()
-        unlabeledY = label.masked_select(torch.from_numpy(unlabeled).byte().cuda()).contiguous().view(-1, 2)
+        label = Variable(torch.as_tensor(lids, dtype=torch.long))
+        #label = Variable(torch.LongTensor(list(lids))).cuda()
+        unlabeledY = label.masked_select(torch.as_tensor(unlabeled, dtype=torch.bool)).contiguous().view(-1, 2)
+        #unlabeledY = label.masked_select(torch.from_numpy(unlabeled).byte().cuda()).contiguous().view(-1, 2)
 
         acc = torch.mean((torch.argmax(unlabeledY, dim=1) == pred).float())
         return acc.item(), risk.item(), pRisk.item(), nRisk.item()
@@ -148,7 +155,8 @@ class Trainer(object):
             mask[i][:x][:] = 1
         result = self.model(token, case, char, feature)
         # print(result)
-        result = result.masked_select(torch.from_numpy(mask).byte().cuda()).contiguous().view(-1, 2)
+        result = result.masked_select(torch.as_tensor(mask,dtype=torch.bool)).contiguous().view(-1, 2)
+        #result = result.masked_select(torch.from_numpy(mask).byte().cuda()).contiguous().view(-1, 2)
         pred = torch.argmax(result, dim=1)
 
         temp = result[:, 1]
@@ -185,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=100,help='batch size for training and testing')
     parser.add_argument('--print_time', type=int, default=1,help='epochs for printing result')
     parser.add_argument('--pert', type=float, default=1.0,help='percentage of data use for training')
-    parser.add_argument('--type', type=str, default='bnpu',help='pu learning type (bnpu/bpu/upu)')  # bpu upu
+    parser.add_argument('--learning_type', type=str, default='bnpu',help='pu learning type (bnpu/bpu/upu)')  # bpu upu
 
     args = parser.parse_args()
 
@@ -205,7 +213,7 @@ if __name__ == "__main__":
     featurenet = FeatureNet()
     pulstmcnn = PULSTMCNN(dp, charcnn, wordnet, casenet, featurenet, 150, 200, 1, args.drop_out)
 
-    if torch.cuda.is_available:
+    if False and torch.cuda.is_available:
         charcnn.cuda()
         wordnet.cuda()
         casenet.cuda()
@@ -365,7 +373,7 @@ if __name__ == "__main__":
                 trainer.bestResult = f1_valid
                 time = 0
                 trainer.save(
-                    ("saved_model/{}_{}_{}_lr_{}_prior_{}_beta_{}_gamma_{}_percent_{}").format(args.type, args.dataset,
+                    ("saved_model/{}_{}_{}_lr_{}_prior_{}_beta_{}_gamma_{}_percent_{}").format(args.learning_type, args.dataset,
                                                                                                args.flag,
                                                                                                trainer.learningRate,
                                                                                                trainer.m,
@@ -379,7 +387,7 @@ if __name__ == "__main__":
 
     pulstmcnn.load_state_dict(
         torch.load(
-            "saved_model/{}_{}_{}_lr_{}_prior_{}_beta_{}_gamma_{}_percent_{}".format(args.type, args.dataset, args.flag,
+            "saved_model/{}_{}_{}_lr_{}_prior_{}_beta_{}_gamma_{}_percent_{}".format(args.learning_type, args.dataset, args.flag,
                                                                                      trainer.learningRate,
                                                                                      trainer.m,
                                                                                      trainer.beta,

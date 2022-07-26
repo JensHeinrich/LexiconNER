@@ -7,7 +7,6 @@ import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 
-
 class Flatten(nn.Module):
     def __init__(self, shape):
         super(Flatten, self).__init__()
@@ -43,10 +42,10 @@ class TimeDistributed(nn.Module):
             charID = []
             for cid in s:
                 temp = []
-                for id in cid:
-                    temp.append(id)
+                for ID in cid:
+                    temp.append(int(ID))
                 charID.append(temp)
-            padding_vector = [self.char2Idx["PADDING"] for i in range(52)]
+            padding_vector = [int(self.char2Idx["PADDING"]) for i in range(52)]
             charID += [padding_vector for _ in range(maxLength - len(charID))]
             ids.append(charID)
         ids = Variable(torch.LongTensor(ids))
@@ -54,7 +53,8 @@ class TimeDistributed(nn.Module):
         sortedLen, indices = torch.sort(lengths, 0, descending=True)
         _, reversedIndices = torch.sort(indices, 0)
         ids = ids[indices]
-        return ids.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
+        #return ids.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
+        return ids, sortedLen.data.numpy().tolist(), reversedIndices
 
 
 class CharCNN(nn.Module):
@@ -104,8 +104,8 @@ class CaseNet(nn.Module):
         ids = []
         for s in x:
             caseID = []
-            for id in s:
-                caseID.append(id)
+            for ID in s:
+                caseID.append(ID)
             caseID += [self.case2Idx["PADDING_TOKEN"] for _ in range(maxLength - len(caseID))]
             ids.append(caseID)
         ids = Variable(torch.LongTensor(ids))
@@ -113,7 +113,8 @@ class CaseNet(nn.Module):
         sortedLen, indices = torch.sort(lengths, 0, descending=True)
         _, reversedIndices = torch.sort(indices, 0)
         ids = ids[indices]
-        return ids.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
+        #return ids.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
+        return ids, sortedLen.data.numpy().tolist(), reversedIndices
 
 
 class WordNet(nn.Module):
@@ -149,7 +150,8 @@ class WordNet(nn.Module):
         sortedLen, indices = torch.sort(lengths, 0, descending=True)
         _, reversedIndices = torch.sort(indices, 0)
         ids = ids[indices]
-        return ids.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
+        return ids, sortedLen.data.numpy().tolist(), reversedIndices
+        #return ids.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
 
 
 class FeatureNet(nn.Module):
@@ -176,7 +178,7 @@ class FeatureNet(nn.Module):
         sortedLen, indices = torch.sort(lengths, 0, descending=True)
         _, reversedIndices = torch.sort(indices, 0)
         feature_ = feature_[indices]
-        return feature_.cuda(), sortedLen.data.numpy().tolist(), reversedIndices.cuda()
+        return feature_, sortedLen.data.numpy().tolist(), reversedIndices
 
 
 def log_sum_exp(vec, m_size):

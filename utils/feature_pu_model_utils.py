@@ -139,7 +139,7 @@ class FeaturedDetectionModelUtils(ModelUtils):
             sentences_X.append(sentence[:4])
             sentences_Y.append(sentence[4])
             sentences_LF.append(sentence[5])
-        return np.array(sentences_X), np.array(sentences_Y), np.array(sentences_LF)
+        return np.array(sentences_X, dtype=object), np.array(sentences_Y,dtype=object), np.array(sentences_LF, dtype=object)
 
     def make_PU_dataset(self, dataset):
 
@@ -220,9 +220,9 @@ class FeaturedDetectionModelUtils(ModelUtils):
         if mode == "TRAIN":
             data_size = len(trainset)
             X, Y, FG = zip(*trainset)
-            X = np.array(X)
-            Y = np.array(Y)
-            FG = np.array(FG)
+            X = np.array(X, dtype=object)
+            Y = np.array(Y, dtype=object)
+            FG = np.array(FG, dtype=object)
 
             num_batches_per_epoch = int((len(trainset) - 1) / batchSize) + 1
             if shuffle:
@@ -262,9 +262,9 @@ class FeaturedDetectionModelUtils(ModelUtils):
                     dt = (dt).astype('int32')
                     flags.append(np.eye(2)[dt])
 
-                yield np.asarray(tokens), np.asarray(caseing), np.asarray(char), np.asarray(features), np.asarray(
-                    labels), np.asarray(
-                    flags)
+                yield np.asarray(tokens, dtype=object), np.asarray(caseing,dtype=object), np.asarray(char, dtype=object), np.asarray(features, dtype=object), np.asarray(
+                    labels, dtype=object), np.asarray(
+                    flags, dtype=object)
         else:
             data_size = len(trainset)
             X, Y, _ = zip(*trainset)
