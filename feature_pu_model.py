@@ -188,7 +188,7 @@ if __name__ == "__main__":
     parser.add_argument('--gamma', type=float, default=1.0,help='gamma of pu learning (default 1.0)')
     parser.add_argument('--drop_out', type=float, default=0.5, help = 'dropout rate')
     parser.add_argument('--m', type=float, default=0.3, help='class balance rate')
-    parser.add_argument('--flag', default="PER" , help='entity type (PER/LOC/ORG/MISC)')
+    parser.add_argument('--flag', default="PER" , help='entity type (PER/LOC/ORG/MISC)', choices=["PER", "LOC", "ORG", "MISC"])
     parser.add_argument('--dataset', default="conll2003",help='name of the dataset')
     parser.add_argument('--batch_size', type=int, default=100,help='batch size for training and testing')
     parser.add_argument('--print_time', type=int, default=1,help='epochs for printing result')
