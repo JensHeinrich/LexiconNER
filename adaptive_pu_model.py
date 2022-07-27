@@ -17,7 +17,7 @@ from utils.dict_utils import DictUtils
 
 
 class AdaPULSTMCNN2(nn.Module):
-    def __init__(self, dp, charModel, wordModel, caseModel, featureModel, inputSize, hiddenSize, layerNum, dropout):
+    def __init__(self, dp, charModel, wordModel, caseModel, featureModel, inputSize, hiddenSize, layerNum, dropout, device=torch.device('cpu')):
         super(AdaPULSTMCNN2, self).__init__()
         self.dp = dp
         self.charModel = TimeDistributed(charModel, self.dp.char2Idx)
@@ -35,6 +35,7 @@ class AdaPULSTMCNN2(nn.Module):
             nn.Linear(200, 2),
             nn.Softmax(dim=2)
         )
+        self.device = device
 
     def forward(self, token, case, char, feature):
         charOut, sortedLen1, reversedIndices1 = self.charModel(char)
@@ -50,7 +51,8 @@ class AdaPULSTMCNN2(nn.Module):
         packed_embeds = pack_padded_sequence(encoding, sortedLen, batch_first=True)
 
         maxLen = sortedLen[0]
-        mask = torch.zeros([len(sortedLen), maxLen, 2])
+        mask = torch.zeros([len(sortedLen), maxLen, 2], device=self.device)
+
         for i, l in enumerate(sortedLen):
             mask[i][:l][:] = 1
 
@@ -62,13 +64,15 @@ class AdaPULSTMCNN2(nn.Module):
 
         fcOut = self.fc(paddedOut[0])
 
-        fcOut = fcOut * mask.cuda()
+        fcOut = fcOut * mask
+        #fcOut = fcOut * mask.cuda()
         fcOut = fcOut[reverseIndices]
 
         return fcOut
 
     def loss_func(self, yTrue, yPred):
-        y = torch.eye(2)[yTrue].float().cuda()
+        y = torch.eye(2)[yTrue].float()
+        #y = torch.eye(2)[yTrue].float().cuda()
         if len(y.shape) == 1:
             y = y[None, :]
         # y = torch.from_numpy(yTrue).float().cuda()
@@ -77,7 +81,7 @@ class AdaPULSTMCNN2(nn.Module):
 
 
 class Trainer(object):
-    def __init__(self, model, prior, beta, gamma, learningRate, m):
+    def __init__(self, model, prior, beta, gamma, learningRate, m, device=torch.device('cpu')):
         self.model = model
         self.learningRate = learningRate
         self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()),
@@ -114,8 +118,8 @@ class Trainer(object):
         self.optimizer.zero_grad()
         result = self.model(token, case, char, feature)
 
-        hP = result.masked_select(torch.from_numpy(postive).byte().cuda()).contiguous().view(-1, 2)
-        hU = result.masked_select(torch.from_numpy(unlabeled).byte().cuda()).contiguous().view(-1, 2)
+        hP = result.masked_select(torch.as_tensor(postive, dtype=torch.bool)).contiguous().view(-1, 2)
+        hU = result.masked_select(torch.as_tensor(unlabeled, dtype=torch.bool)).contiguous().view(-1, 2)
         pRisk = self.model.loss_func(1, hP)
         uRisk = self.model.loss_func(0, hU)
         nRisk = uRisk - self.prior * (1 - pRisk)
@@ -128,8 +132,8 @@ class Trainer(object):
         (risk).backward()
         self.optimizer.step()
         pred = torch.argmax(hU, dim=1)
-        label = Variable(torch.LongTensor(list(lids))).cuda()
-        unlabeledY = label.masked_select(torch.from_numpy(unlabeled).byte().cuda()).contiguous().view(-1, 2)
+        label = Variable(torch.as_tensor(lids, dtype=torch.long))
+        unlabeledY = label.masked_select(torch.as_tensor(unlabeled, dtype=torch.bool)).contiguous().view(-1, 2)
 
         acc = torch.mean((torch.argmax(unlabeledY, dim=1) == pred).float())
         return acc.item(), risk.item(), pRisk.item(), nRisk.item()
@@ -142,7 +146,7 @@ class Trainer(object):
             mask[i][:x][:] = 1
         result = self.model(token, case, char, feature)
         # print(result)
-        result = result.masked_select(torch.from_numpy(mask).byte().cuda()).contiguous().view(-1, 2)
+        result = result.masked_select(torch.as_tensor(mask, dtype=torch.bool)).contiguous().view(-1, 2)
         pred = torch.argmax(result, dim=1)
 
         temp = result[:, 1]
