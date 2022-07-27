@@ -193,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=100,help='batch size for training and testing')
     parser.add_argument('--print_time', type=int, default=1,help='epochs for printing result')
     parser.add_argument('--pert', type=float, default=1.0,help='percentage of data use for training')
-    parser.add_argument('--learning_type', type=str, default='bnpu',help='pu learning type (bnpu/bpu/upu)')  # bpu upu
+    parser.add_argument('--learning_type', type=str, default='bnpu',help='pu learning type (bnpu/bpu/upu)', choices=["bnpu", "bpu", "upu"])  # bpu upu
 
     args = parser.parse_args()
 
